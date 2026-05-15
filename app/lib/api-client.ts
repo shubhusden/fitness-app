@@ -58,6 +58,7 @@ export interface FoodEntry {
   calories: number;
   emoji?: string;
   color?: string;
+  mealType?: 'breakfast' | 'lunch' | 'dinner' | 'snack';
 }
 
 export async function fetchFoods(): Promise<FoodEntry[]> {
@@ -148,6 +149,9 @@ export interface WorkoutLogEntry {
   sets: number;
   reps: number;
   timestamp: number;
+  duration?: number; // Duration in minutes
+  intensity?: "Low" | "Moderate" | "High";
+  caloriesBurned?: number;
 }
 
 export async function fetchWorkoutLogs(): Promise<WorkoutLogEntry[]> {

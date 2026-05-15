@@ -1,95 +1,88 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import BottomNav from "../components/BottomNav";
+import Sidebar from "../components/Sidebar";
+import AIAssistant from "../components/AIAssistant";
+import { useTheme } from "../components/ThemeContext";
 import {
   fetchUser,
   fetchWorkoutLogs,
   logWorkout as apiLogWorkout,
-  syncWorkoutLogs,
 } from "../lib/api-client";
 
-interface UserData {
-  name?: string;
-  weight?: string;
-  height?: string;
-  goal?: number;
-}
+interface UserData { name?: string; weight?: string; height?: string; goal?: number; }
+interface WorkoutLog { exercise: string; sets: number; reps: number; timestamp: number; }
 
-interface WorkoutLog {
-  exercise: string;
-  sets: number;
-  reps: number;
-  timestamp: number;
-}
-
-const sectionMeta: Record<string, { emoji: string; color: string }> = {
-  Cardio:    { emoji: "🏃", color: "rgba(96, 165, 250, 0.12)" },
-  Abs:       { emoji: "🔥", color: "rgba(251, 146, 60, 0.12)" },
-  Chest:     { emoji: "💪", color: "rgba(248, 113, 113, 0.12)" },
-  Back:      { emoji: "🦅", color: "rgba(52, 211, 153, 0.12)" },
-  Biceps:    { emoji: "💪", color: "rgba(212, 168, 83, 0.12)" },
-  Triceps:   { emoji: "🔱", color: "rgba(167, 139, 250, 0.12)" },
-  Shoulders: { emoji: "🎯", color: "rgba(244, 114, 182, 0.12)" },
-  Legs:      { emoji: "🦵", color: "rgba(45, 212, 191, 0.12)" },
+// Accurate Unsplash images per muscle group
+const sectionMeta: Record<string, { image: string; color: string; accent: string; desc: string }> = {
+  Cardio:    { image: "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&q=80", color: "rgba(96,165,250,0.12)", accent: "#60a5fa", desc: "Endurance & Fat Burn" },
+  Abs:       { image: "https://images.unsplash.com/photo-1544216717-3bbf52512659?w=400&q=80", color: "rgba(251,146,60,0.12)",  accent: "#fb923c", desc: "Core Strength" },
+  Chest:     { image: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80", color: "rgba(248,113,113,0.12)", accent: "#f87171", desc: "Push Power" },
+  Back:      { image: "https://images.unsplash.com/photo-1603287681836-b174ce5074c2?w=400&q=80", color: "rgba(52,211,153,0.12)",  accent: "#34d399", desc: "Pull Strength" },
+  Biceps:    { image: "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=400&q=80", color: "rgba(212,168,83,0.12)",  accent: "#d4a853", desc: "Peak & Volume" },
+  Triceps:   { image: "https://images.unsplash.com/photo-1530822847156-5df684ec5ee1?w=400&q=80", color: "rgba(167,139,250,0.12)", accent: "#a78bfa", desc: "Extension & Lock" },
+  Shoulders: { image: "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=400&q=80", color: "rgba(244,114,182,0.12)", accent: "#f472b6", desc: "Width & Definition" },
+  Legs:      { image: "https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=400&q=80", color: "rgba(45,212,191,0.12)",  accent: "#2dd4bf", desc: "Power Base" },
 };
 
+// Real verified YouTube video IDs from top fitness channels
 const videoMap: Record<string, string> = {
-  Running: "brFHyOtTwH4",
-  Cycling: "V8Xz6c5g9nQ",
-  "Jump Rope": "1BZM7z6F2cQ",
-  HIIT: "UBMk30rjy0o",
-  Walking: "kZ2xW8n2Yw0",
-  Swimming: "7V2y9cYH9X8",
-
-  Crunches: "Xyd_fa5zoEU",
-  Plank: "ASdvN_XEl_c",
-  "Leg Raises": "JB2oyawG9KI",
-  "Russian Twists": "wkD8rjkodUI",
-  "Mountain Climbers": "nmwgirgXLYM",
-  "Bicycle Crunch": "9FGilxCbdz8",
-
-  "Bench Press": "gRVjAtPip0Y",
-  "Incline Dumbbell Press": "8iPEnn-ltC8",
-  "Chest Fly": "eozdVDA78K0",
-  "Push Ups": "IODxDxX7oi4",
-  "Cable Crossover": "taI4XduLpTk",
-  "Decline Press": "LfyQBUKR8SE",
-
-  "Pull Ups": "eGo4IYlbE5g",
-  "Lat Pulldown": "CAwf7n6Luuc",
-  Deadlift: "op9kVnSso6Q",
-  "Seated Row": "GZbfZ033f74",
-  "T-Bar Row": "j3Igk5nyZE4",
+  // Cardio - verified IDs
+  Running:             "kVnyY17VS9Y",
+  Cycling:             "jHJBRxc6OMg",  // Indoor Cycling Technique
+  "Jump Rope":         "u3zgHI8QnqE",
+  HIIT:                "ml6cT4AZdqI",
+  Walking:             "pBqFpme33cQ",
+  Swimming:            "c_BBBPHCqwc",  // Freestyle Swimming Tutorial
+  // Abs
+  Crunches:            "Xyd_fa5zoEU",
+  Plank:               "ASdvN_XEl_c",
+  "Leg Raises":        "l4kQd9eWclE",
+  "Russian Twists":    "wkD8rjkodUI",
+  "Mountain Climbers": "cnyTQDSE884",
+  "Bicycle Crunch":    "9FGilxCbdz8",  // Bicycle Crunch - Scott Herman
+  // Chest
+  "Bench Press":             "4Y2ZdHCOXok",
+  "Incline Dumbbell Press":  "DbFgADa2PL8",
+  "Chest Fly":               "eozdVDA78K0",
+  "Push Ups":                "IODxDxX7oi4",
+  "Cable Crossover":         "taI4XduLpTk",
+  "Decline Press":           "LfyQBUKR8SE",  // Decline Bench Press Tutorial
+  // Back
+  "Pull Ups":      "eGo4IYlbE5g",
+  "Lat Pulldown":  "CAwf7n6Luuc",
+  Deadlift:        "op9kVnSso6Q",
+  "Seated Row":    "GZbfZ033f74",
+  "T-Bar Row":     "j3Igk5nyZE4",
   Hyperextensions: "ph3pddpKzzw",
-
-  "Barbell Curl": "kwG2ipFRgfo",
-  "Dumbbell Curl": "ykJmrZ5v0Oo",
-  "Hammer Curl": "zC3nLlEvin4",
-  "Preacher Curl": "fIWP-FRFNU0",
-  "Cable Curl": "av7-8igSXTs",
+  // Biceps
+  "Barbell Curl":       "kwG2ipFRgfo",
+  "Dumbbell Curl":      "ykJmrZ5v0Oo",
+  "Hammer Curl":        "TwD-YGVP4Bk",
+  "Preacher Curl":      "fIWP-FRFNU0",
+  "Cable Curl":         "av7-8igSXTs",
   "Concentration Curl": "soxrZlIl35U",
-
-  "Tricep Pushdown": "2-LAMcpzODU",
-  "Skull Crushers": "d_KZxkY_0cM",
-  Dips: "2z8JmcrW-As",
+  // Triceps
+  "Tricep Pushdown":    "2-LAMcpzODU",
+  "Skull Crushers":     "d_KZxkY_0cM",
+  Dips:                 "2z8JmcrW-As",
   "Overhead Extension": "YbX7Wd8jQ-Q",
-  "Close Grip Bench": "nEF0bv2FW94",
-  Kickbacks: "ZO81bExngMI",
-
+  "Close Grip Bench":   "nEF0bv2FW94",
+  Kickbacks:            "ZO81bExngMI",
+  // Shoulders
   "Shoulder Press": "B-aVuyhvLHU",
-  "Lateral Raise": "3VcKaXpzqRo",
-  "Front Raise": "hRJ6tR5-if0",
-  "Arnold Press": "v_jhP6Jr9bQ",
-  Shrugs: "cJRVVxmytaM",
-  "Reverse Fly": "ea0P6p8N5kQ",
-
-  Squats: "aclHkVaku9U",
-  "Leg Press": "IZxyjW7MPJQ",
-  Lunges: "QOVaHwm-Q6U",
+  "Lateral Raise":  "3VcKaXpzqRo",
+  "Front Raise":    "hRJ6tR5-if0",
+  "Arnold Press":   "68UKQyMF3vo",  // Arnold Press - full tutorial
+  Shrugs:           "cJRVVxmytaM",
+  "Reverse Fly":    "0GSh-OqqA58",  // Reverse Fly / Rear Delt Fly
+  // Legs
+  Squats:           "aclHkVaku9U",
+  "Leg Press":      "IZxyjW7MPJQ",
+  Lunges:           "QOVaHwm-Q6U",
   "Hamstring Curl": "1Tq3QdYUuHs",
-  "Calf Raises": "YMmgqO8Jo-k",
-  "Leg Extension": "YyvSfVjQeL0",
+  "Calf Raises":    "YMmgqO8Jo-k",
+  "Leg Extension":  "YyvSfVjQeL0",
 };
 
 
@@ -104,47 +97,46 @@ const sections: Record<string, string[]> = {
   Legs: ["Squats", "Leg Press", "Lunges", "Hamstring Curl", "Calf Raises", "Leg Extension"],
 };
 
+const IconPlay = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+);
+const IconClose = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+);
+const IconChevron = ({ up }: { up: boolean }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ transform: up ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.3s" }}><path d="m6 9 6 6 6-6"/></svg>
+);
+
 export default function WorkoutPage() {
-  const [activeSection, setActiveSection] = useState<string | null>(null);
+  const { colors } = useTheme();
+  const [activeSection, setActiveSection] = useState<string | null>("Chest");
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
   const [selectedExercise, setSelectedExercise] = useState<string | null>(null);
   const [user, setUser] = useState<UserData | null>(null);
-
-  // Timer
   const [timerActive, setTimerActive] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Set/Rep tracker
   const [logSets, setLogSets] = useState(3);
   const [logReps, setLogReps] = useState(12);
   const [workoutLogs, setWorkoutLogs] = useState<WorkoutLog[]>([]);
   const [logSaved, setLogSaved] = useState(false);
 
-  // Load user data and workout logs
   useEffect(() => {
-    // Load from localStorage first for instant display
     const stored = localStorage.getItem("user");
     if (stored) setUser(JSON.parse(stored));
-
     const storedLogs = localStorage.getItem("workoutLogs");
     if (storedLogs) setWorkoutLogs(JSON.parse(storedLogs));
-
-    // Then fetch from backend API
     fetchUser().then((u) => { if (u) setUser(u); });
     fetchWorkoutLogs().then((logs) => { if (logs.length > 0) setWorkoutLogs(logs); });
   }, []);
 
-  // Timer
   useEffect(() => {
     if (timerActive) {
       timerRef.current = setInterval(() => setTimerSeconds((s) => s + 1), 1000);
     } else if (timerRef.current) {
       clearInterval(timerRef.current);
     }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [timerActive]);
 
   const formatTime = (s: number) => {
@@ -156,567 +148,233 @@ export default function WorkoutPage() {
 
   const logExercise = () => {
     if (!selectedExercise) return;
-    const entry: WorkoutLog = {
-      exercise: selectedExercise,
-      sets: logSets,
-      reps: logReps,
+    const estDuration = logSets * 1.5; // 1.5 mins per set
+    const calBurned = Math.round(estDuration * 6); // ~6 kcal per min for lifting
+    const entry: WorkoutLog = { 
+      exercise: selectedExercise, 
+      sets: logSets, 
+      reps: logReps, 
       timestamp: Date.now(),
+      duration: estDuration,
+      caloriesBurned: calBurned,
+      intensity: "Moderate"
     };
     const updated = [...workoutLogs, entry];
     setWorkoutLogs(updated);
     localStorage.setItem("workoutLogs", JSON.stringify(updated));
-
-    // Sync to backend
     apiLogWorkout(entry);
-
     setLogSaved(true);
     setTimeout(() => setLogSaved(false), 2000);
   };
 
-  const weight = user?.weight ? parseFloat(user.weight) : 70;
-  const targetWeight = Math.round(weight * 0.93);
-  const todayLogs = workoutLogs.filter(
-    (l) => new Date(l.timestamp).toDateString() === new Date().toDateString()
-  );
+  const clearLog = () => {
+    if (!window.confirm("Clear all today's workout logs?")) return;
+    const updated = workoutLogs.filter(
+      (l) => new Date(l.timestamp).toDateString() !== new Date().toDateString()
+    );
+    setWorkoutLogs(updated);
+    localStorage.setItem("workoutLogs", JSON.stringify(updated));
+  };
+
+  const todayLogs = workoutLogs.filter((l) => new Date(l.timestamp).toDateString() === new Date().toDateString());
   const todayTotalSets = todayLogs.reduce((sum, l) => sum + l.sets, 0);
+  const todayCalsBurned = todayLogs.reduce((sum, l) => sum + (l.caloriesBurned || 0), 0);
+  const todayDuration = todayLogs.reduce((sum, l) => sum + (l.duration || 0), 0);
+
+  const stats = [
+    { label: "CALS BURNED", value: `${todayCalsBurned} kcal`, icon: <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.292 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg> },
+    { label: "EST. DURATION", value: `${Math.round(todayDuration)} min`, icon: <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> },
+    { label: "SETS TODAY", value: `${todayTotalSets}`, icon: <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 6.5 17.5 17.5"/><path d="M22 17.5 17.5 22"/><path d="m22 22-4.5-4.5"/><path d="m2 6.5 4.5-4.5"/><path d="m2 2 4.5 4.5"/></svg> },
+  ];
 
   return (
-    <div
-      style={{
-        background: "#0e0d0b",
-        color: "#f0ebe0",
-        minHeight: "100vh",
-        fontFamily: "'DM Sans', sans-serif",
-        paddingBottom: "80px",
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      {/* Background orb */}
-      <div
-        style={{
-          position: "absolute",
-          width: "400px",
-          height: "400px",
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(212,168,83,0.08) 0%, transparent 70%)",
-          top: "-100px",
-          right: "-80px",
-          pointerEvents: "none",
-        }}
-      />
+    <div className="main-content" style={{ minHeight: "100vh", paddingBottom: "100px", position: "relative" }}>
 
-      <div style={{ maxWidth: "900px", margin: "0 auto", padding: "40px 24px", position: "relative", zIndex: 1 }}>
+      <div style={{ maxWidth: "960px", margin: "0 auto", padding: "60px 24px" }}>
 
-        {/* ═══ HEADER ═══ */}
-        <div style={{ marginBottom: "28px" }}>
-          <p style={{ fontSize: "14px", color: "#d4a853", marginBottom: "4px", fontWeight: 500 }}>
-            🏋️ Workout Zone
-          </p>
-          <h1
-            style={{
-              fontFamily: "'Cormorant Garamond', serif",
-              fontSize: "clamp(28px, 5vw, 40px)",
-              fontWeight: 300,
-              margin: 0,
-            }}
-          >
-            Train <em style={{ color: "#d4a853" }}>smarter</em>, not harder
+        {/* HEADER */}
+        <div style={{ marginBottom: "40px" }}>
+          <p style={{ fontSize: "13px", color: colors.accent, marginBottom: "8px", fontWeight: 700, letterSpacing: "2px" }}>WORKOUT HUB</p>
+          <h1 style={{ fontFamily: "'Inter', sans-serif", fontSize: "clamp(32px, 6vw, 48px)", fontWeight: 300, margin: 0 }}>
+            Master your <span style={{ color: colors.accent }}>technique</span>
           </h1>
         </div>
 
-        {/* ═══ STATS CARDS ═══ */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "24px" }}>
-          {[
-            { label: "Your Weight", value: `${weight} kg`, icon: "⚖️" },
-            { label: "Target Weight", value: `${targetWeight} kg`, icon: "🎯" },
-            { label: "Today's Sets", value: `${todayTotalSets}`, icon: "📊" },
-          ].map((stat, i) => (
-            <div
-              key={i}
-              style={{
-                background: "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%)",
-                border: "1px solid rgba(255,255,255,0.07)",
-                borderRadius: "16px",
-                padding: "18px 14px",
-                textAlign: "center",
-              }}
+        {/* STATS */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+          <p style={{ fontSize: "11px", opacity: 0.4, fontWeight: 700, letterSpacing: "1px", margin: 0 }}>TODAY'S SESSION</p>
+          {todayTotalSets > 0 && (
+            <button
+              onClick={clearLog}
+              style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 14px", borderRadius: "10px", border: "1px solid rgba(192,96,96,0.3)", background: "rgba(192,96,96,0.08)", color: "#c06060", cursor: "pointer", fontSize: "12px", fontWeight: 700, letterSpacing: "0.5px", transition: "all 0.2s" }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "rgba(192,96,96,0.18)"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "rgba(192,96,96,0.08)"}
             >
-              <div style={{ fontSize: "20px", marginBottom: "6px" }}>{stat.icon}</div>
-              <p style={{ fontSize: "11px", color: "#7a7568", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "4px" }}>
-                {stat.label}
-              </p>
-              <h2 style={{ fontSize: "20px", fontWeight: 600, margin: 0 }}>{stat.value}</h2>
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="m19 6-.867 12.142A2 2 0 0 1 16.138 20H7.862a2 2 0 0 1-1.995-1.858L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+              CLEAR LOG
+            </button>
+          )}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", marginBottom: "28px" }}>
+          {stats.map((stat, i) => (
+            <div key={i} className="bento-card" style={{ borderRadius: "20px", padding: "24px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+              <div style={{ color: colors.accent }}>{stat.icon}</div>
+              <p style={{ fontSize: "10px", opacity: 0.5, fontWeight: 700, letterSpacing: "1px", margin: 0 }}>{stat.label}</p>
+              <h2 style={{ fontSize: "22px", fontWeight: 700, margin: 0, fontFamily: "'Inter', sans-serif" }}>{stat.value}</h2>
             </div>
           ))}
         </div>
 
-        {/* ═══ WORKOUT TIMER ═══ */}
-        <div
-          style={{
-            background: "linear-gradient(135deg, rgba(212,168,83,0.08) 0%, rgba(20,19,17,0.9) 100%)",
-            border: "1px solid rgba(212,168,83,0.15)",
-            borderRadius: "20px",
-            padding: "24px",
-            marginBottom: "24px",
-            textAlign: "center",
-          }}
-        >
-          <p style={{ fontSize: "12px", color: "#7a7568", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "8px" }}>
-            ⏱ Workout Timer
-          </p>
-          <div
-            style={{
-              fontSize: "48px",
-              fontFamily: "'Cormorant Garamond', serif",
-              fontWeight: 300,
-              letterSpacing: "4px",
-              color: timerActive ? "#d4a853" : "#f0ebe0",
-              transition: "color 0.3s ease",
-            }}
-          >
-            {formatTime(timerSeconds)}
+        {/* TIMER */}
+        <div className="bento-card" style={{ borderRadius: "24px", padding: "28px 32px", marginBottom: "28px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "20px", background: `linear-gradient(135deg, ${colors.accentMuted}, transparent)` }}>
+          <div>
+            <p style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "2px", marginBottom: "8px", opacity: 0.5 }}>SESSION TIMER</p>
+            <div style={{ fontSize: "52px", fontFamily: "'Inter', sans-serif", fontWeight: 300, letterSpacing: "4px", color: timerActive ? colors.accent : colors.text, lineHeight: 1 }}>
+              {formatTime(timerSeconds)}
+            </div>
           </div>
-          <div style={{ display: "flex", justifyContent: "center", gap: "10px", marginTop: "16px" }}>
-            <button
-              onClick={() => setTimerActive(!timerActive)}
-              style={{
-                padding: "10px 28px",
-                borderRadius: "12px",
-                border: "none",
-                background: timerActive
-                  ? "rgba(192,96,96,0.2)"
-                  : "linear-gradient(135deg, #d4a853, #b8883a)",
-                color: timerActive ? "#c06060" : "#0e0d0b",
-                fontFamily: "'DM Sans', sans-serif",
-                fontWeight: 600,
-                fontSize: "14px",
-                cursor: "pointer",
-                transition: "all 0.2s ease",
-              }}
-            >
-              {timerActive ? "⏸ Pause" : "▶ Start"}
+          <div style={{ display: "flex", gap: "12px" }}>
+            <button onClick={() => setTimerActive(!timerActive)} className="btn-premium" style={{ padding: "12px 28px", borderRadius: "14px", border: "none", background: timerActive ? "rgba(192,96,96,0.2)" : colors.accent, color: timerActive ? "#c06060" : "#0e0d0b", fontWeight: 700, fontSize: "13px", cursor: "pointer", letterSpacing: "1px" }}>
+              {timerActive ? "PAUSE" : "START"}
             </button>
-            <button
-              onClick={() => {
-                setTimerActive(false);
-                setTimerSeconds(0);
-              }}
-              style={{
-                padding: "10px 24px",
-                borderRadius: "12px",
-                border: "1px solid rgba(255,255,255,0.1)",
-                background: "rgba(255,255,255,0.05)",
-                color: "#7a7568",
-                fontFamily: "'DM Sans', sans-serif",
-                fontWeight: 500,
-                fontSize: "14px",
-                cursor: "pointer",
-              }}
-            >
-              ↻ Reset
+            <button onClick={() => { setTimerActive(false); setTimerSeconds(0); }} style={{ padding: "12px 20px", borderRadius: "14px", border: `1px solid ${colors.border}`, background: "transparent", color: colors.text, fontWeight: 600, fontSize: "13px", cursor: "pointer", opacity: 0.6 }}>
+              RESET
             </button>
           </div>
         </div>
 
-        {/* ═══ VIDEO PLAYER ═══ */}
+        {/* VIDEO PLAYER */}
         {selectedVideo && (
-          <div
-            style={{
-              marginBottom: "24px",
-              borderRadius: "20px",
-              overflow: "hidden",
-              border: "1px solid rgba(212,168,83,0.15)",
-              animation: "scaleIn 0.3s ease both",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "14px 20px",
-                background: "rgba(20,19,17,0.95)",
-              }}
-            >
+          <div className="bento-card" style={{ marginBottom: "28px", borderRadius: "24px", overflow: "hidden", animation: "scaleIn 0.3s ease both" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", borderBottom: `1px solid ${colors.border}` }}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#d4a853" }} />
-                <span style={{ fontWeight: 500, fontSize: "14px" }}>
-                  {selectedExercise || "Tutorial"}
-                </span>
+                <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#ef4444", animation: "pulseSubtle 1.5s infinite" }} />
+                <span style={{ fontWeight: 600, fontSize: "14px" }}>{selectedExercise}</span>
+                <span style={{ fontSize: "11px", opacity: 0.4, fontWeight: 600, letterSpacing: "1px" }}>· TUTORIAL</span>
               </div>
-              <button
-                onClick={() => {
-                  setSelectedVideo(null);
-                  setSelectedExercise(null);
-                }}
-                style={{
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: "8px",
-                  padding: "4px 12px",
-                  cursor: "pointer",
-                  color: "#7a7568",
-                  fontSize: "13px",
-                }}
-              >
-                ✕ Close
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <a
+                  href={`https://www.youtube.com/watch?v=${selectedVideo}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: "12px", color: colors.accent, textDecoration: "none", fontWeight: 600, opacity: 0.7 }}
+                >
+                  Watch on YouTube ↗
+                </a>
+                <button onClick={() => { setSelectedVideo(null); setSelectedExercise(null); }} style={{ background: "rgba(255,255,255,0.06)", border: "none", color: colors.text, cursor: "pointer", width: "30px", height: "30px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <IconClose />
+                </button>
+              </div>
             </div>
-            <iframe
-              key={selectedVideo}
-              src={`https://www.youtube.com/embed/${selectedVideo}`}
-              allowFullScreen
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              style={{
-                width: "100%",
-                height: "280px",
-                border: "none",
-                display: "block",
-              }}
-            />
-            {/* Fallback search link in case video is unavailable */}
-            <div
-              style={{
-                padding: "10px 20px",
-                background: "rgba(20,19,17,0.95)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                fontSize: "12px",
-                color: "#7a7568",
-              }}
-            >
-              <span>Video not loading?</span>
-              <a
-                href={`https://www.youtube.com/results?search_query=${encodeURIComponent((selectedExercise || "exercise") + " form tutorial")}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  color: "#d4a853",
-                  textDecoration: "none",
-                  fontWeight: 500,
-                }}
-              >
-                Search on YouTube →
-              </a>
+            <div style={{ position: "relative", width: "100%", paddingTop: "56.25%", background: "#000" }}>
+              <iframe
+                key={selectedVideo}
+                src={`https://www.youtube-nocookie.com/embed/${selectedVideo}?autoplay=1&rel=0&modestbranding=1&playsinline=1`}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+                referrerPolicy="strict-origin-when-cross-origin"
+                style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
+              />
             </div>
           </div>
         )}
 
-        {/* ═══ SET/REP TRACKER ═══ */}
+        {/* LOG TRACKER */}
         {selectedExercise && (
-          <div
-            style={{
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.07)",
-              borderRadius: "20px",
-              padding: "24px",
-              marginBottom: "24px",
-              animation: "scaleIn 0.3s ease both",
-            }}
-          >
-            <h3
-              style={{
-                fontFamily: "'Cormorant Garamond', serif",
-                fontWeight: 400,
-                fontSize: "18px",
-                marginBottom: "16px",
-              }}
-            >
-              📝 Log: <span style={{ color: "#d4a853" }}>{selectedExercise}</span>
+          <div className="bento-card" style={{ padding: "28px", marginBottom: "28px", borderRadius: "24px", animation: "fadeUp 0.4s ease both", border: `1px solid ${colors.accentMuted}` }}>
+            <h3 style={{ fontFamily: "'Inter', sans-serif", fontSize: "20px", marginBottom: "20px" }}>
+              Log: <span style={{ color: colors.accent }}>{selectedExercise}</span>
             </h3>
-            <div style={{ display: "flex", gap: "14px", alignItems: "flex-end", flexWrap: "wrap" }}>
-              <div>
-                <label style={{ display: "block", fontSize: "11px", color: "#7a7568", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "6px" }}>
-                  Sets
-                </label>
-                <input
-                  type="number"
-                  value={logSets}
-                  onChange={(e) => setLogSets(Math.max(1, parseInt(e.target.value) || 1))}
-                  style={{
-                    width: "70px",
-                    padding: "10px 12px",
-                    borderRadius: "10px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    background: "rgba(255,255,255,0.04)",
-                    color: "#f0ebe0",
-                    fontSize: "16px",
-                    fontWeight: 600,
-                    textAlign: "center",
-                    fontFamily: "'DM Sans', sans-serif",
-                    outline: "none",
-                  }}
-                />
+            <div style={{ display: "flex", gap: "16px", alignItems: "flex-end", flexWrap: "wrap" }}>
+              <div style={{ flex: 1, minWidth: "90px" }}>
+                <label style={{ fontSize: "11px", fontWeight: 700, color: colors.accent, marginBottom: "8px", display: "block", letterSpacing: "1px" }}>SETS</label>
+                <input type="number" value={logSets} onChange={(e) => setLogSets(parseInt(e.target.value) || 1)} style={{ width: "100%", padding: "12px", borderRadius: "12px", border: `1px solid ${colors.border}`, background: colors.card, color: colors.text, textAlign: "center", fontSize: "20px", fontWeight: 700, outline: "none" }} />
               </div>
-              <div style={{ fontSize: "18px", color: "#7a7568", alignSelf: "center", paddingBottom: "6px" }}>×</div>
-              <div>
-                <label style={{ display: "block", fontSize: "11px", color: "#7a7568", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "6px" }}>
-                  Reps
-                </label>
-                <input
-                  type="number"
-                  value={logReps}
-                  onChange={(e) => setLogReps(Math.max(1, parseInt(e.target.value) || 1))}
-                  style={{
-                    width: "70px",
-                    padding: "10px 12px",
-                    borderRadius: "10px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    background: "rgba(255,255,255,0.04)",
-                    color: "#f0ebe0",
-                    fontSize: "16px",
-                    fontWeight: 600,
-                    textAlign: "center",
-                    fontFamily: "'DM Sans', sans-serif",
-                    outline: "none",
-                  }}
-                />
+              <div style={{ fontSize: "22px", opacity: 0.3, paddingBottom: "12px", fontWeight: 300 }}>×</div>
+              <div style={{ flex: 1, minWidth: "90px" }}>
+                <label style={{ fontSize: "11px", fontWeight: 700, color: colors.accent, marginBottom: "8px", display: "block", letterSpacing: "1px" }}>REPS</label>
+                <input type="number" value={logReps} onChange={(e) => setLogReps(parseInt(e.target.value) || 1)} style={{ width: "100%", padding: "12px", borderRadius: "12px", border: `1px solid ${colors.border}`, background: colors.card, color: colors.text, textAlign: "center", fontSize: "20px", fontWeight: 700, outline: "none" }} />
               </div>
-              <button
-                onClick={logExercise}
-                style={{
-                  padding: "10px 24px",
-                  borderRadius: "12px",
-                  border: "none",
-                  background: "linear-gradient(135deg, #d4a853, #b8883a)",
-                  color: "#0e0d0b",
-                  fontFamily: "'DM Sans', sans-serif",
-                  fontWeight: 600,
-                  fontSize: "14px",
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                }}
-              >
-                ✓ Log Set
-              </button>
-              {logSaved && (
-                <span style={{ fontSize: "13px", color: "#d4a853", animation: "fadeUp 0.3s ease" }}>
-                  ✓ Saved!
-                </span>
-              )}
+              <button onClick={logExercise} className="btn-premium" style={{ flex: 2, minWidth: "120px", padding: "14px", borderRadius: "12px", border: "none", background: colors.accent, color: "#0e0d0b", fontWeight: 700, cursor: "pointer", fontSize: "14px", letterSpacing: "1px" }}>LOG SET</button>
             </div>
-
-            {/* Today's logs for this exercise */}
-            {todayLogs.filter((l) => l.exercise === selectedExercise).length > 0 && (
-              <div style={{ marginTop: "16px", borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "12px" }}>
-                <p style={{ fontSize: "11px", color: "#7a7568", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "8px" }}>
-                  Today's Log
-                </p>
-                {todayLogs
-                  .filter((l) => l.exercise === selectedExercise)
-                  .map((l, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        display: "inline-block",
-                        padding: "4px 12px",
-                        borderRadius: "8px",
-                        background: "rgba(212,168,83,0.1)",
-                        border: "1px solid rgba(212,168,83,0.15)",
-                        marginRight: "6px",
-                        marginBottom: "6px",
-                        fontSize: "12px",
-                        color: "#d4a853",
-                      }}
-                    >
-                      {l.sets}×{l.reps}
-                    </div>
-                  ))}
+            {logSaved && (
+              <div style={{ marginTop: "14px", display: "flex", alignItems: "center", gap: "8px", color: colors.accent, fontSize: "13px", fontWeight: 600 }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                Set logged successfully!
               </div>
             )}
           </div>
         )}
 
-        {/* ═══ EXERCISE SECTIONS ═══ */}
-        {Object.entries(sections).map(([section, exercises]) => {
-          const meta = sectionMeta[section] || { emoji: "🏋️", color: "rgba(255,255,255,0.05)" };
-          const isActive = activeSection === section;
-
-          return (
-            <div key={section} style={{ marginBottom: "10px" }}>
-              {/* Section header */}
-              <div
-                onClick={() => setActiveSection(isActive ? null : section)}
-                style={{
-                  background: isActive
-                    ? `linear-gradient(135deg, ${meta.color}, rgba(20,19,17,0.95))`
-                    : "rgba(255,255,255,0.03)",
-                  border: isActive
-                    ? "1px solid rgba(212,168,83,0.2)"
-                    : "1px solid rgba(255,255,255,0.05)",
-                  padding: "18px 20px",
-                  borderRadius: isActive ? "16px 16px 4px 4px" : "16px",
-                  cursor: "pointer",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  transition: "all 0.25s ease",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  <span style={{ fontSize: "22px" }}>{meta.emoji}</span>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 600 }}>{section}</h3>
-                    <p style={{ margin: 0, fontSize: "12px", color: "#7a7568" }}>
-                      {exercises.length} exercises
-                    </p>
+        {/* SECTIONS */}
+        <div style={{ display: "grid", gap: "12px" }}>
+          {Object.entries(sections).map(([section, exercises]) => {
+            const meta = sectionMeta[section];
+            const isActive = activeSection === section;
+            return (
+              <div key={section} style={{ borderRadius: "20px", overflow: "hidden", border: `1px solid ${isActive ? meta.accent + "40" : colors.border}`, transition: "all 0.3s" }}>
+                {/* Section Header */}
+                <div
+                  onClick={() => setActiveSection(isActive ? null : section)}
+                  style={{ display: "flex", alignItems: "center", gap: "0", cursor: "pointer", background: isActive ? colors.card : "rgba(255,255,255,0.02)", transition: "background 0.3s" }}
+                >
+                  {/* Image thumbnail */}
+                  <div style={{ width: "80px", height: "72px", flexShrink: 0, overflow: "hidden" }}>
+                    <img src={meta.image} alt={section} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  </div>
+                  {/* Info */}
+                  <div style={{ flex: 1, padding: "16px 20px" }}>
+                    <div style={{ fontSize: "16px", fontWeight: 700 }}>{section}</div>
+                    <div style={{ fontSize: "12px", opacity: 0.45, marginTop: "2px" }}>{meta.desc} · {exercises.length} exercises</div>
+                  </div>
+                  {/* Accent bar + chevron */}
+                  <div style={{ padding: "0 20px", display: "flex", alignItems: "center", gap: "12px" }}>
+                    <div style={{ width: "3px", height: "28px", borderRadius: "2px", background: isActive ? meta.accent : "transparent", transition: "background 0.3s" }} />
+                    <span style={{ color: colors.text, opacity: 0.4 }}><IconChevron up={isActive} /></span>
                   </div>
                 </div>
-                <div
-                  style={{
-                    width: "28px",
-                    height: "28px",
-                    borderRadius: "8px",
-                    background: isActive ? "rgba(212,168,83,0.15)" : "rgba(255,255,255,0.05)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "16px",
-                    color: isActive ? "#d4a853" : "#7a7568",
-                    transition: "transform 0.25s ease",
-                    transform: isActive ? "rotate(45deg)" : "rotate(0deg)",
-                  }}
-                >
-                  +
-                </div>
-              </div>
 
-              {/* Exercises grid */}
-              {isActive && (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
-                    gap: "8px",
-                    padding: "12px",
-                    background: "rgba(255,255,255,0.015)",
-                    borderRadius: "0 0 16px 16px",
-                    border: "1px solid rgba(255,255,255,0.05)",
-                    borderTop: "none",
-                    animation: "scaleIn 0.25s ease both",
-                  }}
-                >
-                  {exercises.map((ex, i) => {
-                    const isSelected = selectedExercise === ex;
-                    return (
-                      <div
-                        key={i}
-                        onClick={() => {
-                          setSelectedVideo(videoMap[ex] || "");
-                          setSelectedExercise(ex);
-                        }}
-                        style={{
-                          background: isSelected
-                            ? "rgba(212,168,83,0.12)"
-                            : "rgba(255,255,255,0.03)",
-                          border: isSelected
-                            ? "1px solid rgba(212,168,83,0.3)"
-                            : "1px solid rgba(255,255,255,0.05)",
-                          padding: "14px",
-                          borderRadius: "12px",
-                          textAlign: "center",
-                          cursor: "pointer",
-                          fontSize: "13px",
-                          fontWeight: isSelected ? 600 : 400,
-                          color: isSelected ? "#d4a853" : "#f0ebe0",
-                          transition: "all 0.2s ease",
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!isSelected) {
-                            (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.06)";
-                            (e.currentTarget as HTMLDivElement).style.transform = "translateY(-1px)";
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!isSelected) {
-                            (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.03)";
-                            (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
-                          }
-                        }}
-                      >
-                        {ex}
-                        {/* Show badge if logged today */}
-                        {todayLogs.some((l) => l.exercise === ex) && (
-                          <span
+                {/* Exercise Grid */}
+                {isActive && (
+                  <div style={{ padding: "16px 20px 20px", background: "rgba(0,0,0,0.15)", animation: "fadeIn 0.25s ease both" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "10px" }}>
+                      {exercises.map((ex) => {
+                        const isSelected = selectedExercise === ex;
+                        return (
+                          <div
+                            key={ex}
+                            onClick={() => { setSelectedVideo(videoMap[ex] || ""); setSelectedExercise(ex); }}
+                            className="btn-premium"
                             style={{
-                              display: "inline-block",
-                              marginLeft: "6px",
-                              width: "6px",
-                              height: "6px",
-                              borderRadius: "50%",
-                              background: "#d4a853",
-                              verticalAlign: "middle",
+                              background: isSelected ? meta.accent + "20" : colors.card,
+                              border: `1px solid ${isSelected ? meta.accent : colors.border}`,
+                              borderRadius: "14px",
+                              padding: "12px 14px",
+                              cursor: "pointer",
+                              fontSize: "13px",
+                              fontWeight: isSelected ? 700 : 500,
+                              color: isSelected ? meta.accent : colors.text,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                              transition: "all 0.2s",
                             }}
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {/* ═══ TODAY'S WORKOUT SUMMARY ═══ */}
-        {todayLogs.length > 0 && (
-          <div
-            style={{
-              marginTop: "28px",
-              padding: "24px",
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.07)",
-              borderRadius: "20px",
-            }}
-          >
-            <h3
-              style={{
-                fontFamily: "'Cormorant Garamond', serif",
-                fontWeight: 400,
-                fontSize: "20px",
-                marginBottom: "16px",
-              }}
-            >
-              📋 Today&apos;s Workout Summary
-            </h3>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "8px" }}>
-              {Object.entries(
-                todayLogs.reduce(
-                  (acc: Record<string, { sets: number; reps: number[] }>, l) => {
-                    if (!acc[l.exercise]) acc[l.exercise] = { sets: 0, reps: [] };
-                    acc[l.exercise].sets += l.sets;
-                    acc[l.exercise].reps.push(l.reps);
-                    return acc;
-                  },
-                  {}
-                )
-              ).map(([ex, data]) => (
-                <div
-                  key={ex}
-                  style={{
-                    padding: "12px 16px",
-                    background: "rgba(212,168,83,0.06)",
-                    border: "1px solid rgba(212,168,83,0.1)",
-                    borderRadius: "12px",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <span style={{ fontSize: "13px", fontWeight: 500 }}>{ex}</span>
-                  <span style={{ fontSize: "12px", color: "#d4a853" }}>
-                    {data.sets} sets
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+                          >
+                            <span style={{ opacity: isSelected ? 1 : 0.35, color: meta.accent, flexShrink: 0 }}><IconPlay /></span>
+                            {ex}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
-
-      <BottomNav />
+      <Sidebar />
+      <AIAssistant userData={user} />
     </div>
   );
 }
