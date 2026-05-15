@@ -92,7 +92,6 @@ const videoMap: Record<string, string> = {
   "Leg Extension": "YyvSfVjQeL0",
 };
 
-const fallbackVideo = "dQw4w9WgXcQ";
 
 const sections: Record<string, string[]> = {
   Cardio: ["Running", "Cycling", "Jump Rope", "HIIT", "Walking", "Swimming"],
@@ -368,6 +367,7 @@ export default function WorkoutPage() {
               key={selectedVideo}
               src={`https://www.youtube.com/embed/${selectedVideo}`}
               allowFullScreen
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               style={{
                 width: "100%",
                 height: "280px",
@@ -375,6 +375,32 @@ export default function WorkoutPage() {
                 display: "block",
               }}
             />
+            {/* Fallback search link in case video is unavailable */}
+            <div
+              style={{
+                padding: "10px 20px",
+                background: "rgba(20,19,17,0.95)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                fontSize: "12px",
+                color: "#7a7568",
+              }}
+            >
+              <span>Video not loading?</span>
+              <a
+                href={`https://www.youtube.com/results?search_query=${encodeURIComponent((selectedExercise || "exercise") + " form tutorial")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  color: "#d4a853",
+                  textDecoration: "none",
+                  fontWeight: 500,
+                }}
+              >
+                Search on YouTube →
+              </a>
+            </div>
           </div>
         )}
 
@@ -578,7 +604,7 @@ export default function WorkoutPage() {
                       <div
                         key={i}
                         onClick={() => {
-                          setSelectedVideo(videoMap[ex] || fallbackVideo);
+                          setSelectedVideo(videoMap[ex] || "");
                           setSelectedExercise(ex);
                         }}
                         style={{
