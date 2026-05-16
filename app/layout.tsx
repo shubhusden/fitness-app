@@ -1,11 +1,17 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { ThemeProvider } from "./components/ThemeContext";
+import { ToastProvider } from "./components/ToastProvider";
 
 export const metadata: Metadata = {
   title: "NourishFit — Your Fitness Companion",
   description:
     "Track calories, follow guided workouts, and reach your fitness goals with an AI-powered personal coach.",
+  manifest: "/manifest.json",
+};
+
+export const viewport = {
+  themeColor: "#d4a853",
 };
 
 export default function RootLayout({
@@ -22,7 +28,9 @@ export default function RootLayout({
       </head>
       <body style={{ margin: 0 }}>
         <ThemeProvider>
-          {children}
+          <ToastProvider>
+            {children}
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>

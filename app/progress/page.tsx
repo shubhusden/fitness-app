@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import Sidebar from "../components/Sidebar";
 import AIAssistant from "../components/AIAssistant";
 import { useTheme } from "../components/ThemeContext";
-import { fetchUser, fetchWorkoutLogs } from "../lib/api-client";
+import { fetchUser, fetchWorkoutLogs, fetchFoods } from "../lib/api-client";
 
 /* ─── Types ─── */
 interface UserData {
@@ -137,19 +137,41 @@ export default function ProgressPage() {
   const [planSeed, setPlanSeed] = useState(0);
   const [workoutLogs, setWorkoutLogs] = useState<any[]>([]);
   const [readinessScore, setReadinessScore] = useState(88);
+  const [foodLogs, setFoodLogs] = useState<any[]>([]);
 
+  // Get real weekly data from logs
   const weeklyData = useMemo(() => {
-    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    return days.map((day, i) => {
-      const isToday = i === (new Date().getDay() + 6) % 7;
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    
+    return Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() - (6 - i));
+      const isToday = i === 6;
+      
+      const dayLogs = workoutLogs.filter(l => {
+        const ld = new Date(l.timestamp);
+        ld.setHours(0,0,0,0);
+        return ld.getTime() === d.getTime();
+      });
+      
+      const realBurn = dayLogs.reduce((sum, l) => sum + (l.caloriesBurned || 0), 0);
+      
+      // Since food history isn't saved in this version (only current list), we approximate past food or use today's actual
+      const realFood = isToday 
+        ? foodLogs.reduce((sum, f) => sum + (f.calories || 0), 0)
+        : (dayLogs.length > 0 ? 2200 : 1800); // placeholder for past days based on activity
+
       return {
-        day,
-        food: isToday ? 0 : 1800 + Math.random() * 400 - 200,
-        burn: isToday ? 0 : 200 + Math.random() * 200,
+        day: days[d.getDay()],
+        date: d,
+        food: realFood,
+        burn: realBurn,
         isToday
       };
     });
-  }, []);
+  }, [workoutLogs, foodLogs]);
 
   useEffect(() => {
     const stored = localStorage.getItem("user");
@@ -164,11 +186,19 @@ export default function ProgressPage() {
       }
     }
     fetchUser().then((u) => { if (u) setUser(u); });
+    fetchFoods().then(f => setFoodLogs(f));
     fetchWorkoutLogs().then(logs => {
       if (logs) setWorkoutLogs(logs);
       const todayLogs = logs.filter((l: any) => new Date(l.timestamp).toDateString() === new Date().toDateString());
       setReadinessScore(Math.max(10, 88 - (todayLogs.length * 4)));
     });
+
+    // Load generated plan if exists
+    const savedPlan = localStorage.getItem("workoutPlan");
+    if (savedPlan) {
+      setPlanGenerated(true);
+      // Wait for next render cycle to set seed correctly if needed
+    }
   }, []);
 
   const weight = user?.weight ? parseFloat(user.weight) : 70;
@@ -180,12 +210,24 @@ export default function ProgressPage() {
   const goalCat = bmiCategory(goalBMI);
   const goalType = goalWeightNum < weight ? "lose" : goalWeightNum > weight ? "gain" : "maintain";
 
-  const plan = useMemo(() => (planGenerated ? generatePlan(trainingDays, goalType) : []), [planGenerated, trainingDays, goalType, planSeed]);
+  const plan: DayPlan[] = useMemo(() => {
+    if (!planGenerated) return [];
+    const savedPlan = localStorage.getItem("workoutPlan");
+    if (savedPlan && planSeed === 0) return JSON.parse(savedPlan) as DayPlan[];
+    const newPlan = generatePlan(trainingDays, goalType);
+    localStorage.setItem("workoutPlan", JSON.stringify(newPlan));
+    return newPlan;
+  }, [planGenerated, trainingDays, goalType, planSeed]);
 
   const handleGeneratePlan = () => {
     setPlanSeed((s) => s + 1);
     setPlanGenerated(true);
     setExpandedDay(0);
+  };
+
+  const startWorkout = (dayPlan: DayPlan) => {
+    localStorage.setItem("activeWorkoutDay", dayPlan.day);
+    window.location.href = "/workout";
   };
 
   return (
@@ -230,13 +272,33 @@ export default function ProgressPage() {
               {weeklyData.map((d, i) => (
                 <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
                   <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: "2px", opacity: d.isToday ? 1 : 0.6 }}>
-                    <div style={{ width: "100%", background: colors.accent, borderRadius: "4px", height: `${(d.burn / 3000) * 100}%`, minHeight: d.isToday ? "0px" : "4px" }} />
-                    <div style={{ width: "100%", background: colors.text, borderRadius: "4px", height: `${(d.food / 3000) * 100}%`, minHeight: d.isToday ? "0px" : "4px" }} />
+                    {/* Burn block */}
+                    <div style={{ width: "100%", background: colors.accent, borderRadius: "4px", height: `${Math.min((d.burn / 1500) * 100, 100)}%`, minHeight: d.burn > 0 ? "4px" : "0px", position: "relative" }} title={`Burned: ${d.burn} kcal`} />
+                    {/* Food block */}
+                    <div style={{ width: "100%", background: colors.text, borderRadius: "4px", height: `${Math.min((d.food / 3000) * 100, 100)}%`, minHeight: d.food > 0 ? "4px" : "0px" }} title={`Eaten: ${d.food} kcal`} />
                   </div>
                   <span style={{ fontSize: "10px", fontWeight: d.isToday ? 700 : 500, opacity: d.isToday ? 1 : 0.4, color: d.isToday ? colors.accent : colors.text }}>{d.day}</span>
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+
+        {/* CONSISTENCY TRACKER */}
+        <div className="bento-card" style={{ padding: "24px 32px", borderRadius: "24px", marginBottom: "32px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <h3 style={{ fontSize: "16px", fontWeight: 700, margin: "0 0 4px 0" }}>Workout Consistency</h3>
+            <p style={{ fontSize: "12px", opacity: 0.5, margin: 0 }}>Your activity over the last 7 days</p>
+          </div>
+          <div style={{ display: "flex", gap: "10px" }}>
+            {weeklyData.map((d, i) => (
+              <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
+                <div style={{ width: "24px", height: "24px", borderRadius: "8px", background: d.burn > 0 ? colors.accent : "rgba(255,255,255,0.05)", border: `1px solid ${d.burn > 0 ? colors.accent : colors.border}`, display: "flex", alignItems: "center", justifyContent: "center", color: "#0e0d0b" }}>
+                  {d.burn > 0 && <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                </div>
+                <span style={{ fontSize: "9px", fontWeight: 700, opacity: 0.4 }}>{d.day.toUpperCase()}</span>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -332,7 +394,7 @@ export default function ProgressPage() {
                   {expandedDay === idx && (
                     <div style={{ padding: "0 24px 24px 24px", animation: "fadeIn 0.3s ease" }}>
                       <div style={{ height: "1px", background: colors.border, marginBottom: "16px" }} />
-                      <div style={{ display: "grid", gap: "12px" }}>
+                      <div style={{ display: "grid", gap: "12px", marginBottom: "20px" }}>
                         {day.exercises.map((ex, i) => (
                           <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: "rgba(255,255,255,0.02)", borderRadius: "12px", border: `1px solid ${colors.border}` }}>
                             <span style={{ fontWeight: 600, fontSize: "14px" }}>{ex.name}</span>
@@ -340,6 +402,18 @@ export default function ProgressPage() {
                           </div>
                         ))}
                       </div>
+                      
+                      {/* START WORKOUT BUTTON */}
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); startWorkout(day); }}
+                        className="btn-premium"
+                        style={{ width: "100%", padding: "14px", borderRadius: "12px", background: "transparent", border: `1px solid ${colors.accent}`, color: colors.accent, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", transition: "all 0.2s" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = colors.accent; e.currentTarget.style.color = "#0e0d0b"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = colors.accent; }}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        START WORKOUT
+                      </button>
                     </div>
                   )}
                 </div>

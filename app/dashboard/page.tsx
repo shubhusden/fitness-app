@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Sidebar from "../components/Sidebar";
 import AIAssistant from "../components/AIAssistant";
 import { useTheme, ThemeKey, themes } from "../components/ThemeContext";
+import { useToast } from "../components/ToastProvider";
 import {
   fetchUser, fetchFoods, addFood as apiAddFood,
   removeFood as apiRemoveFood, clearFoods as apiClearFoods, fetchWorkoutLogs
@@ -78,16 +79,21 @@ function getGreeting(hour: number): string {
 export default function Dashboard() {
   const router = useRouter();
   const { theme, setTheme, colors } = useTheme();
+  const { toast } = useToast();
+
+  const popularMeals = {
+    breakfast: ["Egg", "Banana", "Milk", "Bread", "Dosa", "Idli", "Upma", "Poha", "Aloo Paratha"],
+    lunch: ["Rice", "Chicken", "Chapati", "Dal Tadka", "Paneer Butter Masala", "Chicken Biryani", "Rajma"],
+    dinner: ["Chapati", "Chicken Curry", "Dal Fry", "Palak Paneer", "Fried Rice", "Curd Rice"],
+    snack: ["Apple", "Banana", "Samosa", "Pakora", "Burger", "Pizza", "Maggi"]
+  };
   const [foods, setFoods] = useState<DisplayFood[]>([]);
   const [user, setUser] = useState<UserData | null>(null);
-  const [search, setSearch] = useState("");
   const [now, setNow] = useState<Date | null>(null);
   const [waterCups, setWaterCups] = useState(0);
   const [streak, setStreak] = useState(0);
-  const [searchResults, setSearchResults] = useState<DisplayFood[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [isLiveSearch, setIsLiveSearch] = useState(false);
-  const [selectedFoodForMeal, setSelectedFoodForMeal] = useState<DisplayFood | null>(null);
+  const [activeMealAdd, setActiveMealAdd] = useState<'breakfast' | 'lunch' | 'dinner' | 'snack' | null>(null);
+  const [mealSearchQuery, setMealSearchQuery] = useState("");
   const [workoutLogs, setWorkoutLogs] = useState<any[]>([]);
 
   useEffect(() => {
@@ -154,13 +160,16 @@ export default function Dashboard() {
       apiAddFood({ name: food.name, calories: food.calories, color: food.color, mealType });
       return updated;
     });
-    setSelectedFoodForMeal(null); // Close popover after adding
+    setActiveMealAdd(null); // Close inline dropdown
+    setMealSearchQuery("");
+    toast(`${food.name} added to ${mealType}`, "success");
   };
 
   const addWater = () => {
     const next = Math.min(waterCups + 1, 8);
     setWaterCups(next);
     localStorage.setItem("water_" + new Date().toDateString(), String(next));
+    if (next === 8) toast("Daily water goal reached! 🎉", "success");
   };
 
   const removeWater = () => {
@@ -168,24 +177,6 @@ export default function Dashboard() {
     setWaterCups(next);
     localStorage.setItem("water_" + new Date().toDateString(), String(next));
   };
-
-  // Debounced live food search
-  const doSearch = useCallback(async (q: string) => {
-    if (q.length < 2) { setSearchResults([]); setIsLiveSearch(false); return; }
-    setSearchLoading(true);
-    setIsLiveSearch(true);
-    try {
-      const res = await fetch(`/api/food-search?q=${encodeURIComponent(q)}`);
-      const data = await res.json();
-      setSearchResults(data);
-    } catch { setSearchResults([]); }
-    finally { setSearchLoading(false); }
-  }, []);
-
-  useEffect(() => {
-    const t = setTimeout(() => doSearch(search), 450);
-    return () => clearTimeout(t);
-  }, [search, doSearch]);
 
   const removeFood = (name: string) => {
     setFoods((prev) => {
@@ -197,6 +188,7 @@ export default function Dashboard() {
       apiRemoveFood(name);
       return updated;
     });
+    toast(`${name} removed`, "info");
   };
 
   const handleRefresh = () => {
@@ -231,18 +223,6 @@ export default function Dashboard() {
   const progress = Math.min((totalCalories / (goal + totalBurned)) * 100, 100);
   const over = remaining < 0;
 
-  const filteredFoods = search
-    ? allFoods.filter((f) => f.name.toLowerCase().includes(search.toLowerCase()) && !f.name.startsWith("Indian Dish"))
-    : allFoods.slice(0, 15);
-
-  const displayFoods: DisplayFood[] = filteredFoods.map((f) => {
-    const existing = foodDB.find((x) => x.name === f.name);
-    // Priority: source data image → FOOD_IMAGES map → foodDB entry → default
-    const img = (f as any).image || FOOD_IMAGES[f.name] || existing?.image || DEFAULT_FOOD_IMAGE;
-    const color = existing?.color || "#2a2a2a";
-    return { ...f, image: img, color };
-  });
-
   const radius = 54;
   const circumference = 2 * Math.PI * radius;
   const dash = (progress / 100) * circumference;
@@ -262,6 +242,21 @@ export default function Dashboard() {
 
   return (
     <div className="main-content" style={{ minHeight: "100vh", paddingBottom: "100px", position: "relative" }}>
+      <style>{`
+        .hide-mobile { display: inline; }
+        .macros-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        .meals-grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
+        .dashboard-header { display: flex; gap: 24px; align-items: center; margin-bottom: 48px; }
+        @media (min-width: 640px) {
+          .macros-grid { grid-template-columns: 1fr 1fr 1fr; }
+          .meals-grid { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 640px) {
+          .hide-mobile { display: none; }
+          .dashboard-header { flex-direction: column; align-items: flex-start; gap: 16px; }
+        }
+      `}</style>
+
 
       {/* TOP RIGHT CONTROLS */}
       <div style={{ position: "fixed", top: "20px", right: "24px", display: "flex", gap: "10px", zIndex: 1000, alignItems: "center" }}>
@@ -277,9 +272,8 @@ export default function Dashboard() {
           >
             <option value="dark">Dark</option>
             <option value="light">Light</option>
-            <option value="cloudy">Cloudy</option>
-            <option value="forest">Forest</option>
-            <option value="ocean">Ocean</option>
+            <option value="strava">Strava (Orange)</option>
+            <option value="nike">Nike (Volt)</option>
           </select>
           <span style={{ position: "absolute", right: "10px", pointerEvents: "none", opacity: 0.4, display: "flex" }}>
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="m6 9 6 6 6-6"/></svg>
@@ -299,7 +293,7 @@ export default function Dashboard() {
 
       <div style={{ maxWidth: "900px", margin: "0 auto", padding: "60px 24px" }}>
         {/* HEADER */}
-        <div style={{ marginBottom: "48px", display: "flex", gap: "24px", alignItems: "center" }}>
+        <div className="dashboard-header">
           <div style={{ position: "relative", width: "80px", height: "80px", flexShrink: 0 }}>
             <svg width="80" height="80" viewBox="0 0 120 120">
               <circle cx="60" cy="60" r="56" fill="none" stroke={colors.accentMuted} strokeWidth="1.5" />
@@ -375,7 +369,7 @@ export default function Dashboard() {
           
           {/* MACRO BARS */}
           <div style={{ height: "1px", background: colors.border }} />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "20px" }}>
+          <div className="macros-grid">
             {[
               { label: "PROTEIN", val: totalProtein, g: user?.weight ? parseFloat(user.weight as string) * 1.8 : 120, color: "#60a5fa" },
               { label: "CARBS",   val: totalCarbs,   g: goal * 0.5 / 4,  color: colors.accent },
@@ -410,7 +404,7 @@ export default function Dashboard() {
                   <div>
                     <p style={{ fontSize: "10px", fontWeight: 700, opacity: 0.45, letterSpacing: "1px", margin: 0 }}>WATER</p>
                     <p style={{ fontSize: "22px", fontWeight: 700, fontFamily: "'Inter', sans-serif", margin: "0", color: waterCups >= 8 ? "#60a5fa" : colors.text }}>
-                      {waterCups}<span style={{ fontSize: "14px", opacity: 0.4, fontWeight: 400 }}> / 8</span>
+                      {waterCups}<span style={{ fontSize: "14px", opacity: 0.4, fontWeight: 400 }}> / 8 glasses</span>
                     </p>
                   </div>
                 </div>
@@ -444,7 +438,7 @@ export default function Dashboard() {
             Daily Log
           </h3>
           
-          <div style={{ display: "grid", gap: "24px" }}>
+          <div className="meals-grid">
             {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map(meal => {
               const mealFoods = groupedFoods.filter(f => f.mealType === meal);
               
@@ -479,131 +473,49 @@ export default function Dashboard() {
                     </div>
                   )}
                   
-                  <button onClick={() => {
-                    document.getElementById('food-search')?.scrollIntoView({ behavior: 'smooth' });
-                    document.getElementById('food-search')?.focus();
-                  }} className="btn-premium" style={{ width: "100%", padding: "12px", background: "rgba(255,255,255,0.03)", border: `1px dashed ${colors.border}`, borderRadius: "12px", color: colors.text, cursor: "pointer", fontSize: "13px", fontWeight: 600, transition: "all 0.2s" }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = colors.accent; e.currentTarget.style.color = colors.accent; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = colors.border; e.currentTarget.style.color = colors.text; }}>
-                    + ADD FOOD
-                  </button>
+                  {activeMealAdd === meal ? (
+                    <div style={{ marginTop: "16px", padding: "16px", background: "rgba(0,0,0,0.15)", borderRadius: "16px", border: `1px solid ${colors.border}`, animation: "fadeIn 0.2s ease" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                        <span style={{ fontSize: "12px", fontWeight: 700, opacity: 0.5, letterSpacing: "1px" }}>SEARCH {meal.toUpperCase()}</span>
+                        <button onClick={() => { setActiveMealAdd(null); setMealSearchQuery(""); }} style={{ background: "none", border: "none", color: colors.text, opacity: 0.5, cursor: "pointer", padding: "0" }}>✕</button>
+                      </div>
+                      <input
+                        autoFocus
+                        placeholder={`Search to add to ${mealTitles[meal]}...`}
+                        value={mealSearchQuery}
+                        onChange={(e) => setMealSearchQuery(e.target.value)}
+                        style={{ width: "100%", padding: "12px 16px", borderRadius: "12px", background: colors.card, border: `1px solid ${colors.border}`, color: colors.text, outline: "none", fontSize: "14px", marginBottom: "12px" }}
+                      />
+                      <div style={{ display: "grid", gap: "8px", maxHeight: "200px", overflowY: "auto", paddingRight: "4px" }}>
+                        {(() => {
+                          const defaultFoodsForMeal = allFoods.filter(f => popularMeals[meal as keyof typeof popularMeals]?.includes(f.name));
+                          const foodsToDisplay = mealSearchQuery ? allFoods.filter(f => f.name.toLowerCase().includes(mealSearchQuery.toLowerCase())) : defaultFoodsForMeal;
+                          return foodsToDisplay.slice(0, 10).map((f, i) => {
+                          const img = (f as any).image || FOOD_IMAGES[f.name] || DEFAULT_FOOD_IMAGE;
+                          return (
+                            <div key={i} onClick={() => addFood({ ...f, image: img, color: FOOD_IMAGES[f.name] ? "#2a2a2a" : "#2a2a2a" }, meal)} className="btn-premium" style={{ display: "flex", alignItems: "center", gap: "12px", padding: "8px 12px", background: colors.card, borderRadius: "10px", cursor: "pointer", transition: "all 0.2s" }}>
+                              <img src={img} alt={f.name} style={{ width: "28px", height: "28px", borderRadius: "6px", objectFit: "cover" }} />
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: "13px", fontWeight: 600 }}>{f.name}</div>
+                                <div style={{ fontSize: "11px", color: colors.accent, fontWeight: 700 }}>{f.calories} kcal</div>
+                              </div>
+                              <span style={{ color: colors.accent, fontSize: "16px", fontWeight: 300 }}>+</span>
+                            </div>
+                          );
+                        })})()}
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={() => { setActiveMealAdd(meal); setMealSearchQuery(""); }} className="btn-premium" style={{ width: "100%", padding: "12px", background: "rgba(255,255,255,0.03)", border: `1px dashed ${colors.border}`, borderRadius: "12px", color: colors.text, cursor: "pointer", fontSize: "13px", fontWeight: 600, transition: "all 0.2s" }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = colors.accent; e.currentTarget.style.color = colors.accent; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = colors.border; e.currentTarget.style.color = colors.text; }}>
+                      + ADD FOOD
+                    </button>
+                  )}
                 </div>
               );
             })}
           </div>
         </div>
-
-        {/* SEARCH & QUICK CATALOG */}
-        <div style={{ position: "relative", marginBottom: "24px" }}>
-          <input
-            id="food-search"
-            placeholder="Search any food in the world... (powered by USDA database)"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ width: "100%", padding: "18px 56px 18px 56px", borderRadius: "18px", background: colors.card, color: colors.text, border: `1px solid ${colors.border}`, fontSize: "15px", outline: "none", transition: "all 0.3s" }}
-            onFocus={(e) => e.currentTarget.style.borderColor = colors.accent}
-            onBlur={(e) => e.currentTarget.style.borderColor = colors.border}
-          />
-          <span style={{ position: "absolute", left: "24px", top: "50%", transform: "translateY(-50%)", opacity: 0.4, display: "flex" }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          </span>
-          {searchLoading && (
-            <span style={{ position: "absolute", right: "20px", top: "50%", transform: "translateY(-50%)", display: "flex", gap: "4px" }}>
-              {[0,1,2].map(i => <span key={i} style={{ width: "6px", height: "6px", borderRadius: "50%", background: colors.accent, animation: `bounce 0.9s ${i * 0.15}s infinite` }} />)}
-            </span>
-          )}
-          {search && !searchLoading && (
-            <button onClick={() => setSearch("")} style={{ position: "absolute", right: "20px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: colors.text, cursor: "pointer", opacity: 0.4, fontSize: "18px", lineHeight: 1, padding: 0 }}>×</button>
-          )}
-        </div>
-
-        {/* FOOD GRID */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-          <h3 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: "22px", margin: 0 }}>
-            {isLiveSearch ? "Search Results" : "Quick Catalog"}
-          </h3>
-          {isLiveSearch && !searchLoading && (
-            <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "1px", padding: "4px 10px", borderRadius: "8px", background: `${colors.accent}20`, color: colors.accent, border: `1px solid ${colors.accent}40` }}>
-              LIVE SEARCH
-            </span>
-          )}
-          {!isLiveSearch && (
-            <span style={{ fontSize: "12px", opacity: 0.4 }}>Type to search 3M+ foods</span>
-          )}
-        </div>
-
-        {isLiveSearch && !searchLoading && searchResults.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "48px 24px", opacity: 0.4 }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto 16px", display: "block" }}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <p style={{ margin: 0 }}>No foods found for "{search}"</p>
-          </div>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "16px", marginBottom: "48px" }}>
-            {(isLiveSearch ? searchResults : displayFoods).map((f, i) => (
-              <div
-                key={`${f.name}-${i}`}
-                onClick={() => setSelectedFoodForMeal(f)}
-                className="bento-card btn-premium"
-                style={{ borderRadius: "20px", overflow: "hidden", cursor: "pointer", display: "flex", flexDirection: "column" }}
-              >
-                <div style={{ width: "100%", height: "110px", background: (f as any).color || "#2a2a2a", overflow: "hidden", position: "relative" }}>
-                  <img
-                    src={(f as any).image || DEFAULT_FOOD_IMAGE}
-                    alt={f.name}
-                    style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.85 }}
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = DEFAULT_FOOD_IMAGE; }}
-                  />
-                  {(f as any).servingNote && (
-                    <span style={{ position: "absolute", top: "8px", right: "8px", fontSize: "9px", fontWeight: 700, letterSpacing: "0.5px", background: "rgba(0,0,0,0.5)", color: "#fff", padding: "2px 6px", borderRadius: "5px", backdropFilter: "blur(4px)" }}>
-                      /100g
-                    </span>
-                  )}
-                </div>
-                <div style={{ padding: "12px 14px" }}>
-                  <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "5px", lineHeight: 1.3 }}>{f.name}</div>
-                  <div style={{ fontSize: "14px", color: colors.accent, fontWeight: 700 }}>{f.calories} <span style={{ fontSize: "10px", opacity: 0.6, fontWeight: 400 }}>kcal</span></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-
       </div>
-      
-      {/* MEAL SELECTION POPOVER */}
-      {selectedFoodForMeal && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 1200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-          {/* Backdrop */}
-          <div 
-            onClick={() => setSelectedFoodForMeal(null)}
-            style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)", animation: "fadeIn 0.2s ease" }}
-          />
-          {/* Modal */}
-          <div style={{ position: "relative", width: "100%", maxWidth: "500px", background: colors.card, borderTopLeftRadius: "28px", borderTopRightRadius: "28px", padding: "32px 24px", animation: "slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)", borderTop: `1px solid ${colors.border}`, borderLeft: `1px solid ${colors.border}`, borderRight: `1px solid ${colors.border}`, boxShadow: "0 -10px 40px rgba(0,0,0,0.2)" }}>
-            <div style={{ display: "flex", gap: "16px", alignItems: "center", marginBottom: "24px" }}>
-              <img src={(selectedFoodForMeal as any).image || DEFAULT_FOOD_IMAGE} alt={selectedFoodForMeal.name} style={{ width: "56px", height: "56px", borderRadius: "12px", objectFit: "cover" }} />
-              <div>
-                <h4 style={{ margin: 0, fontSize: "20px", fontWeight: 700 }}>{selectedFoodForMeal.name}</h4>
-                <p style={{ margin: "4px 0 0", color: colors.accent, fontSize: "14px", fontWeight: 600 }}>{selectedFoodForMeal.calories} kcal</p>
-              </div>
-            </div>
-            <p style={{ fontSize: "14px", opacity: 0.6, marginBottom: "16px", fontWeight: 600, letterSpacing: "0.5px" }}>SELECT MEAL</p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-              {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map(meal => (
-                <button
-                  key={meal}
-                  onClick={() => addFood(selectedFoodForMeal, meal)}
-                  className="btn-premium"
-                  style={{ padding: "16px", background: "rgba(255,255,255,0.03)", border: `1px solid ${colors.border}`, borderRadius: "16px", color: colors.text, cursor: "pointer", fontSize: "16px", fontWeight: 600, textTransform: "capitalize", transition: "all 0.2s" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = colors.accent; e.currentTarget.style.background = colors.accentMuted; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = colors.border; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
-                >
-                  {meal}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       <AIAssistant userData={user} foods={foods} />
       <Sidebar />

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { saveUser } from "../lib/api-client";
+import { useTheme } from "../components/ThemeContext";
 
 interface UserForm {
   name: string;
@@ -13,6 +14,7 @@ interface UserForm {
 
 export default function Onboarding() {
   const router = useRouter();
+  const { colors } = useTheme();
 
   const [user, setUser] = useState<UserForm>({
     name: "",
@@ -56,21 +58,21 @@ export default function Onboarding() {
   };
 
   const fields = [
-    { name: "name", placeholder: "Your name", type: "text" },
-    { name: "age", placeholder: "Age", type: "number" },
-    { name: "height", placeholder: "Height (cm)", type: "number" },
-    { name: "weight", placeholder: "Weight (kg)", type: "number" },
+    { name: "name", placeholder: "Your name", type: "text", label: "NAME" },
+    { name: "age", placeholder: "e.g. 25", type: "number", label: "AGE" },
+    { name: "height", placeholder: "e.g. 180", type: "number", label: "HEIGHT (CM)" },
+    { name: "weight", placeholder: "e.g. 75", type: "number", label: "WEIGHT (KG)" },
   ];
 
   return (
     <div style={{
-      background: "#0e0d0b",
+      background: colors.bg,
       minHeight: "100vh",
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
-      color: "white",
-      fontFamily: "'DM Sans', sans-serif",
+      color: colors.text,
+      fontFamily: "'Inter', sans-serif",
       padding: "24px",
       position: "relative",
       overflow: "hidden",
@@ -80,95 +82,77 @@ export default function Onboarding() {
           from { opacity: 0; transform: translateY(20px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        @keyframes floatOrb {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-20px); }
-        }
         .onboard-card { animation: fadeUp 0.6s ease both; }
         .field-group { animation: fadeUp 0.6s ease both; }
         .onboard-input {
           width: 100%;
-          padding: 13px 16px;
-          border-radius: 10px;
-          border: 1px solid rgba(255,255,255,0.07);
-          background: rgba(255,255,255,0.04);
-          color: #f0ebe0;
-          font-size: 14px;
-          font-family: 'DM Sans', sans-serif;
+          padding: 16px;
+          border-radius: 16px;
+          border: 1px solid ${colors.border};
+          background: ${colors.card};
+          color: ${colors.text};
+          font-size: 16px;
+          font-family: 'Inter', sans-serif;
+          font-weight: 600;
           outline: none;
-          transition: border-color 0.2s ease, background 0.2s ease;
+          transition: all 0.2s ease;
           box-sizing: border-box;
         }
-        .onboard-input::placeholder { color: #5a5448; }
+        .onboard-input::placeholder { color: ${colors.text}; opacity: 0.3; font-weight: 400; }
         .onboard-input:focus {
-          border-color: rgba(212,168,83,0.5);
-          background: rgba(212,168,83,0.05);
+          border-color: ${colors.accent};
+          background: ${colors.accentMuted};
         }
         .gender-btn {
           transition: all 0.2s ease;
-        }
-        .gender-btn:hover {
-          background: rgba(212,168,83,0.1) !important;
-          border-color: rgba(212,168,83,0.4) !important;
         }
         .submit-btn {
           transition: all 0.3s ease;
         }
         .submit-btn:hover:not(:disabled) {
-          background: #e8bc6a !important;
           transform: translateY(-2px);
-          box-shadow: 0 10px 30px rgba(212,168,83,0.3);
+          box-shadow: 0 10px 30px ${colors.accentMuted};
         }
-        .step-dot { transition: all 0.3s ease; }
       `}</style>
 
-      {/* BG orb */}
-      <div style={{
-        position: "absolute", width: "400px", height: "400px",
-        borderRadius: "50%", background: "radial-gradient(circle, rgba(212,168,83,0.12) 0%, transparent 65%)",
-        top: "-80px", right: "-80px", animation: "floatOrb 8s ease-in-out infinite",
-        pointerEvents: "none",
-      }} />
-
-      <div className="onboard-card" style={{
-        background: "rgba(20,19,17,0.95)",
-        border: "1px solid rgba(255,255,255,0.07)",
-        padding: "40px 36px",
-        borderRadius: "20px",
+      {/* Modern Bento Form */}
+      <div className="onboard-card bento-card" style={{
+        background: colors.card,
+        border: `1px solid ${colors.border}`,
+        padding: "48px 40px",
+        borderRadius: "32px",
         width: "100%",
-        maxWidth: "400px",
-        backdropFilter: "blur(20px)",
-        boxShadow: "0 40px 80px rgba(0,0,0,0.5)",
-        position: "relative",
+        maxWidth: "480px",
+        boxShadow: "0 40px 80px rgba(0,0,0,0.3)",
       }}>
-
         {/* Header */}
-        <div style={{ marginBottom: "32px" }}>
+        <div style={{ marginBottom: "40px" }}>
           <div style={{
-            width: "40px", height: "40px", borderRadius: "10px",
-            background: "rgba(212,168,83,0.15)", display: "flex",
+            width: "48px", height: "48px", borderRadius: "12px",
+            background: colors.accent, display: "flex",
             alignItems: "center", justifyContent: "center",
-            fontSize: "18px", marginBottom: "16px",
-            border: "1px solid rgba(212,168,83,0.2)",
+            marginBottom: "24px", color: "#0e0d0b"
           }}>
-            🌿
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           </div>
+          <p style={{ fontSize: "12px", fontWeight: 700, color: colors.accent, letterSpacing: "1px", margin: "0 0 8px 0" }}>NOURISHFIT</p>
           <h2 style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontWeight: 300, fontSize: "28px",
-            color: "#f5f0e8", marginBottom: "6px", margin: "0 0 6px",
+            fontFamily: "'Inter', sans-serif",
+            fontWeight: 800, fontSize: "32px",
+            margin: "0 0 8px 0", letterSpacing: "-0.5px"
           }}>
-            Tell us about yourself
+            Set up your profile
           </h2>
-          <p style={{ color: "#5a5448", fontSize: "13px", margin: 0, lineHeight: 1.6 }}>
-            We&apos;ll calculate your personal calorie goal
+          <p style={{ fontSize: "14px", opacity: 0.6, margin: 0, lineHeight: 1.6, fontWeight: 500 }}>
+            We'll calculate your personal calorie goal based on your stats.
           </p>
         </div>
 
         {/* Fields */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        <div style={{ display: "grid", gap: "20px" }}>
           {fields.map((f, i) => (
             <div key={f.name} className="field-group" style={{ animationDelay: `${i * 0.07}s` }}>
+              <label style={{ fontSize: "11px", fontWeight: 700, color: colors.accent, marginBottom: "8px", display: "block", letterSpacing: "1px" }}>{f.label}</label>
               <input
                 name={f.name}
                 type={f.type}
@@ -180,10 +164,8 @@ export default function Onboarding() {
           ))}
 
           {/* Gender */}
-          <div className="field-group" style={{ animationDelay: "0.28s" }}>
-            <p style={{ color: "#7a7568", fontSize: "12px", marginBottom: "8px", margin: "0 0 8px", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-              Gender
-            </p>
+          <div className="field-group" style={{ animationDelay: "0.28s", marginTop: "4px" }}>
+            <label style={{ fontSize: "11px", fontWeight: 700, color: colors.accent, marginBottom: "8px", display: "block", letterSpacing: "1px" }}>GENDER</label>
             <div style={{ display: "flex", gap: "8px" }}>
               {["Male", "Female", "Other"].map((g) => (
                 <button
@@ -191,19 +173,18 @@ export default function Onboarding() {
                   onClick={() => handleGender(g)}
                   className="gender-btn"
                   style={{
-                    flex: 1, padding: "10px 8px",
-                    borderRadius: "10px",
+                    flex: 1, padding: "14px 8px",
+                    borderRadius: "14px",
                     border: user.gender === g
-                      ? "1px solid rgba(212,168,83,0.7)"
-                      : "1px solid rgba(255,255,255,0.07)",
+                      ? `1px solid ${colors.accent}`
+                      : `1px solid ${colors.border}`,
                     background: user.gender === g
-                      ? "rgba(212,168,83,0.15)"
-                      : "rgba(255,255,255,0.03)",
-                    color: user.gender === g ? "#d4a853" : "#7a7568",
-                    fontSize: "13px",
-                    fontFamily: "'DM Sans', sans-serif",
+                      ? colors.accentMuted
+                      : "transparent",
+                    color: user.gender === g ? colors.accent : colors.text,
+                    fontSize: "14px",
+                    fontWeight: 700,
                     cursor: "pointer",
-                    fontWeight: user.gender === g ? 500 : 300,
                   }}
                 >
                   {g}
@@ -213,21 +194,8 @@ export default function Onboarding() {
           </div>
         </div>
 
-        {/* Validation hint */}
-        {!isFormValid && Object.values(user).some(v => v !== "") && (
-          <p style={{
-            color: "#c06060", marginTop: "12px", fontSize: "12px",
-            display: "flex", alignItems: "center", gap: "5px",
-          }}>
-            <span>○</span> Please fill in all fields to continue
-          </p>
-        )}
-
         {/* Divider */}
-        <div style={{
-          height: "1px", background: "rgba(255,255,255,0.05)",
-          margin: "24px 0",
-        }} />
+        <div style={{ height: "1px", background: colors.border, margin: "32px 0" }} />
 
         {/* Submit */}
         <button
@@ -235,19 +203,19 @@ export default function Onboarding() {
           disabled={!isFormValid}
           className="submit-btn"
           style={{
-            width: "100%", padding: "14px",
-            background: isFormValid ? "#d4a853" : "rgba(255,255,255,0.05)",
-            border: isFormValid ? "none" : "1px solid rgba(255,255,255,0.07)",
-            borderRadius: "12px",
+            width: "100%", padding: "18px",
+            background: isFormValid ? colors.accent : colors.border,
+            border: "none",
+            borderRadius: "16px",
             cursor: isFormValid ? "pointer" : "not-allowed",
-            color: isFormValid ? "#0e0d0b" : "#3a3830",
-            fontSize: "14px",
-            fontFamily: "'DM Sans', sans-serif",
-            fontWeight: 500,
-            letterSpacing: "0.04em",
+            color: isFormValid ? "#0e0d0b" : colors.text,
+            fontSize: "16px",
+            fontWeight: 700,
+            letterSpacing: "1px",
+            opacity: isFormValid ? 1 : 0.5,
           }}
         >
-          {isFormValid ? "Calculate my goal →" : "Continue →"}
+          {isFormValid ? "CALCULATE MY GOAL" : "FILL ALL FIELDS"}
         </button>
       </div>
     </div>

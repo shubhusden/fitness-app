@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import Sidebar from "../components/Sidebar";
 import AIAssistant from "../components/AIAssistant";
 import { useTheme } from "../components/ThemeContext";
+import { useToast } from "../components/ToastProvider";
 import {
   fetchUser,
   fetchWorkoutLogs,
@@ -119,7 +120,18 @@ export default function WorkoutPage() {
   const [logSets, setLogSets] = useState(3);
   const [logReps, setLogReps] = useState(12);
   const [workoutLogs, setWorkoutLogs] = useState<WorkoutLog[]>([]);
-  const [logSaved, setLogSaved] = useState(false);
+  const { toast } = useToast();
+  const [activePlan, setActivePlan] = useState<any>(null);
+  const [restTimer, setRestTimer] = useState(0);
+
+  // Rest Timer Effect
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout>;
+    if (restTimer > 0) {
+      t = setTimeout(() => setRestTimer(r => r - 1), 1000);
+    }
+    return () => clearTimeout(t);
+  }, [restTimer]);
 
   useEffect(() => {
     const stored = localStorage.getItem("user");
@@ -128,6 +140,20 @@ export default function WorkoutPage() {
     if (storedLogs) setWorkoutLogs(JSON.parse(storedLogs));
     fetchUser().then((u) => { if (u) setUser(u); });
     fetchWorkoutLogs().then((logs) => { if (logs.length > 0) setWorkoutLogs(logs); });
+
+    // Load Plan
+    const storedPlan = localStorage.getItem("workoutPlan");
+    const activeDay = localStorage.getItem("activeWorkoutDay");
+    if (storedPlan) {
+      const parsedPlan = JSON.parse(storedPlan);
+      const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const targetDay = activeDay || dayNames[new Date().getDay()];
+      const todaysPlan = parsedPlan.find((p: any) => p.day === targetDay);
+      if (todaysPlan) setActivePlan(todaysPlan);
+      
+      // Clear activeDay so it defaults to real current day next time
+      if (activeDay) localStorage.removeItem("activeWorkoutDay");
+    }
   }, []);
 
   useEffect(() => {
@@ -163,9 +189,40 @@ export default function WorkoutPage() {
     setWorkoutLogs(updated);
     localStorage.setItem("workoutLogs", JSON.stringify(updated));
     apiLogWorkout(entry);
-    setLogSaved(true);
-    setTimeout(() => setLogSaved(false), 2000);
+    toast("Set logged successfully", "success");
+    setRestTimer(60); // Start 60s rest timer
   };
+
+  const selectPrescribedExercise = (ex: any) => {
+    setSelectedVideo(videoMap[ex.name] || "");
+    setSelectedExercise(ex.name);
+    setLogSets(ex.sets);
+    
+    if (typeof ex.reps === "string") {
+      if (ex.reps.includes("-")) {
+        setLogReps(parseInt(ex.reps.split("-")[0]));
+      } else if (ex.reps.includes("min")) {
+        setLogReps(parseInt(ex.reps.replace(" min", "")));
+      } else {
+        setLogReps(parseInt(ex.reps) || 10);
+      }
+    } else {
+      setLogReps(ex.reps || 10);
+    }
+    
+    // Auto-scroll to the log section
+    setTimeout(() => {
+      document.getElementById("log-section")?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+  };
+
+  const lastSession = useMemo(() => {
+    if (!selectedExercise) return null;
+    const pastLogs = workoutLogs
+      .filter(l => l.exercise === selectedExercise && new Date(l.timestamp).toDateString() !== new Date().toDateString())
+      .sort((a, b) => b.timestamp - a.timestamp);
+    return pastLogs.length > 0 ? pastLogs[0] : null;
+  }, [selectedExercise, workoutLogs]);
 
   const clearLog = () => {
     if (!window.confirm("Clear all today's workout logs?")) return;
@@ -174,6 +231,7 @@ export default function WorkoutPage() {
     );
     setWorkoutLogs(updated);
     localStorage.setItem("workoutLogs", JSON.stringify(updated));
+    toast("Logs cleared", "info");
   };
 
   const todayLogs = workoutLogs.filter((l) => new Date(l.timestamp).toDateString() === new Date().toDateString());
@@ -243,6 +301,48 @@ export default function WorkoutPage() {
           </div>
         </div>
 
+        {/* PRESCRIBED PLAN (If exists) */}
+        {activePlan && (
+          <div className="bento-card" style={{ marginBottom: "28px", borderRadius: "24px", padding: "32px", border: `1px solid ${colors.accent}40`, animation: "fadeUp 0.3s ease both" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
+              <div>
+                <p style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "1px", color: colors.accent, margin: "0 0 4px 0" }}>TODAY'S PLAN</p>
+                <h3 style={{ fontSize: "22px", margin: 0, fontFamily: "'Inter', sans-serif" }}>{activePlan.focus}</h3>
+              </div>
+              <div style={{ width: "48px", height: "48px", borderRadius: "12px", overflow: "hidden", background: colors.accentMuted }}>
+                <img src={activePlan.image} alt={activePlan.focus} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              </div>
+            </div>
+            
+            <div style={{ display: "grid", gap: "12px" }}>
+              {activePlan.exercises.map((ex: any, i: number) => {
+                const isSelected = selectedExercise === ex.name;
+                const isLoggedToday = workoutLogs.some(l => l.exercise === ex.name && new Date(l.timestamp).toDateString() === new Date().toDateString());
+                
+                return (
+                  <div 
+                    key={i} 
+                    onClick={() => selectPrescribedExercise(ex)}
+                    className="btn-premium"
+                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", borderRadius: "16px", background: isSelected ? `${colors.accent}15` : colors.card, border: `1px solid ${isSelected ? colors.accent : colors.border}`, cursor: "pointer", transition: "all 0.2s" }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <div style={{ width: "24px", height: "24px", borderRadius: "6px", background: isLoggedToday ? colors.accent : "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", color: isLoggedToday ? "#0e0d0b" : colors.text }}>
+                        {isLoggedToday ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> : i + 1}
+                      </div>
+                      <span style={{ fontWeight: 600, fontSize: "15px", color: isSelected ? colors.accent : colors.text }}>{ex.name}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                      <span style={{ fontSize: "13px", fontWeight: 700, opacity: 0.6 }}>{ex.sets} × {ex.reps}</span>
+                      <span style={{ color: colors.accent, opacity: isSelected ? 1 : 0.4 }}><IconPlay /></span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* VIDEO PLAYER */}
         {selectedVideo && (
           <div className="bento-card" style={{ marginBottom: "28px", borderRadius: "24px", overflow: "hidden", animation: "scaleIn 0.3s ease both" }}>
@@ -281,10 +381,22 @@ export default function WorkoutPage() {
 
         {/* LOG TRACKER */}
         {selectedExercise && (
-          <div className="bento-card" style={{ padding: "28px", marginBottom: "28px", borderRadius: "24px", animation: "fadeUp 0.4s ease both", border: `1px solid ${colors.accentMuted}` }}>
-            <h3 style={{ fontFamily: "'Inter', sans-serif", fontSize: "20px", marginBottom: "20px" }}>
-              Log: <span style={{ color: colors.accent }}>{selectedExercise}</span>
-            </h3>
+          <div id="log-section" className="bento-card" style={{ padding: "28px", marginBottom: "28px", borderRadius: "24px", animation: "fadeUp 0.4s ease both", border: `1px solid ${colors.accentMuted}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
+              <div>
+                <h3 style={{ fontFamily: "'Inter', sans-serif", fontSize: "20px", margin: "0 0 6px 0" }}>
+                  Log: <span style={{ color: colors.accent }}>{selectedExercise}</span>
+                </h3>
+                {lastSession ? (
+                  <p style={{ fontSize: "12px", margin: 0, opacity: 0.5, fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    Last time: {lastSession.sets} sets × {lastSession.reps} reps ({new Date(lastSession.timestamp).toLocaleDateString()})
+                  </p>
+                ) : (
+                  <p style={{ fontSize: "12px", margin: 0, opacity: 0.4, fontWeight: 600 }}>First time logging this exercise!</p>
+                )}
+              </div>
+            </div>
             <div style={{ display: "flex", gap: "16px", alignItems: "flex-end", flexWrap: "wrap" }}>
               <div style={{ flex: 1, minWidth: "90px" }}>
                 <label style={{ fontSize: "11px", fontWeight: 700, color: colors.accent, marginBottom: "8px", display: "block", letterSpacing: "1px" }}>SETS</label>
@@ -297,12 +409,6 @@ export default function WorkoutPage() {
               </div>
               <button onClick={logExercise} className="btn-premium" style={{ flex: 2, minWidth: "120px", padding: "14px", borderRadius: "12px", border: "none", background: colors.accent, color: "#0e0d0b", fontWeight: 700, cursor: "pointer", fontSize: "14px", letterSpacing: "1px" }}>LOG SET</button>
             </div>
-            {logSaved && (
-              <div style={{ marginTop: "14px", display: "flex", alignItems: "center", gap: "8px", color: colors.accent, fontSize: "13px", fontWeight: 600 }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                Set logged successfully!
-              </div>
-            )}
           </div>
         )}
 
@@ -373,6 +479,21 @@ export default function WorkoutPage() {
           })}
         </div>
       </div>
+
+      {/* REST TIMER POPUP */}
+      {restTimer > 0 && (
+        <div style={{ position: "fixed", bottom: "32px", left: "50%", transform: "translateX(-50%)", zIndex: 2000, background: colors.card, border: `2px solid ${colors.accent}`, borderRadius: "100px", padding: "12px 24px", display: "flex", alignItems: "center", gap: "16px", boxShadow: "0 20px 40px rgba(0,0,0,0.5)", animation: "slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", color: colors.accent }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "1px" }}>REST</span>
+          </div>
+          <div style={{ fontSize: "24px", fontFamily: "'Inter', sans-serif", fontWeight: 700, minWidth: "60px", textAlign: "center" }}>
+            0:{restTimer.toString().padStart(2, "0")}
+          </div>
+          <button onClick={() => setRestTimer(0)} style={{ background: "rgba(255,255,255,0.1)", border: "none", color: colors.text, borderRadius: "50%", width: "28px", height: "28px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", opacity: 0.6 }}>✕</button>
+        </div>
+      )}
+
       <Sidebar />
       <AIAssistant userData={user} />
     </div>

@@ -35,7 +35,12 @@ export default function Profile() {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onloadend = () => setUser({ ...user, photo: reader.result });
+    reader.onloadend = () => {
+      const updatedUser = { ...user, photo: reader.result };
+      setUser(updatedUser);
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+      apiSaveUser(updatedUser);
+    };
     reader.readAsDataURL(file);
   };
 

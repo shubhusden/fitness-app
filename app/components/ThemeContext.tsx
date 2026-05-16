@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { fetchSettings, saveSettings } from "../lib/api-client";
 
-export type ThemeKey = "dark" | "light" | "cloudy" | "forest" | "ocean";
+export type ThemeKey = "dark" | "light" | "strava" | "nike";
 
 export interface ThemeColors {
   bg: string;
@@ -21,8 +21,8 @@ export const themes: Record<ThemeKey, ThemeColors> = {
     card: "#111111",
     border: "#222222",
     inputBg: "#111111",
-    accent: "#ccff00", // Neon Lime (Top-tier athletic aesthetic)
-    accentMuted: "rgba(204,255,0,0.15)",
+    accent: "#ffffff", // Pure white for minimal dark mode
+    accentMuted: "rgba(255,255,255,0.15)",
   },
   light: {
     bg: "#f4f4f5", // Very light cool grey
@@ -33,32 +33,23 @@ export const themes: Record<ThemeKey, ThemeColors> = {
     accent: "#000000", // Bold black accent in light mode for extreme contrast
     accentMuted: "rgba(0,0,0,0.05)",
   },
-  cloudy: {
-    bg: "#ffffff",
-    text: "#18181b",
-    card: "#fafafa",
-    border: "#f4f4f5",
-    inputBg: "#fafafa",
-    accent: "#3b82f6", // Clean Tech Blue
-    accentMuted: "rgba(59,130,246,0.1)",
+  strava: {
+    bg: "#000000",
+    text: "#ffffff",
+    card: "#111111",
+    border: "#222222",
+    inputBg: "#111111",
+    accent: "#fc4c02", // Strava Orange
+    accentMuted: "rgba(252,76,2,0.15)",
   },
-  forest: {
-    bg: "#ffffff",
-    text: "#000000",
-    card: "#f7fee7", // Extremely light lime tint
-    border: "#ecfccb",
-    inputBg: "#ffffff",
-    accent: "#65a30d", // Organic Green
-    accentMuted: "rgba(101,163,13,0.1)",
-  },
-  ocean: {
-    bg: "#0f172a", // Slate 900
-    text: "#f8fafc",
-    card: "#1e293b",
-    border: "#334155",
-    inputBg: "#1e293b",
-    accent: "#38bdf8", // Sky blue
-    accentMuted: "rgba(56,189,248,0.15)",
+  nike: {
+    bg: "#000000",
+    text: "#ffffff",
+    card: "#111111",
+    border: "#222222",
+    inputBg: "#111111",
+    accent: "#ccff00", // Nike Volt Neon
+    accentMuted: "rgba(204,255,0,0.15)",
   },
 };
 
