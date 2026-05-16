@@ -11,7 +11,7 @@ import {
 } from "../lib/api-client";
 
 interface UserData { name?: string; weight?: string; height?: string; goal?: number; }
-interface WorkoutLog { exercise: string; sets: number; reps: number; timestamp: number; }
+interface WorkoutLog { exercise: string; sets: number; reps: number; timestamp: number; duration?: number; caloriesBurned?: number; intensity?: "Low" | "Moderate" | "High"; }
 
 // Accurate Unsplash images per muscle group
 const sectionMeta: Record<string, { image: string; color: string; accent: string; desc: string }> = {
