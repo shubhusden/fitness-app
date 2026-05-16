@@ -131,7 +131,7 @@ export default function Onboarding() {
             width: "48px", height: "48px", borderRadius: "12px",
             background: colors.accent, display: "flex",
             alignItems: "center", justifyContent: "center",
-            marginBottom: "24px", color: "#0e0d0b"
+            marginBottom: "24px", color: colors.textOnAccent
           }}>
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           </div>
@@ -208,7 +208,7 @@ export default function Onboarding() {
             border: "none",
             borderRadius: "16px",
             cursor: isFormValid ? "pointer" : "not-allowed",
-            color: isFormValid ? "#0e0d0b" : colors.text,
+            color: isFormValid ? colors.textOnAccent : colors.text,
             fontSize: "16px",
             fontWeight: 700,
             letterSpacing: "1px",

@@ -159,7 +159,7 @@ export default function AIAssistant({ userData, foods }: AIAssistantProps) {
                     borderRadius: m.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
                     fontSize: "14px",
                     lineHeight: 1.5,
-                    color: m.role === "user" ? "#0e0d0b" : colors.text,
+                    color: m.role === "user" ? colors.textOnAccent : colors.text,
                     border: m.role === "user" ? "none" : `1px solid ${colors.border}`,
                     boxShadow: m.role === "user" ? `0 4px 12px ${colors.accentMuted}` : "none",
                   }}
@@ -209,7 +209,7 @@ export default function AIAssistant({ userData, foods }: AIAssistantProps) {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "#0e0d0b",
+                color: colors.textOnAccent,
                 transition: "opacity 0.2s"
               }}
             >

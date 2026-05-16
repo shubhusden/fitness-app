@@ -12,6 +12,7 @@ export interface ThemeColors {
   inputBg: string;
   accent: string;
   accentMuted: string;
+  textOnAccent: string;
 }
 
 export const themes: Record<ThemeKey, ThemeColors> = {
@@ -21,17 +22,19 @@ export const themes: Record<ThemeKey, ThemeColors> = {
     card: "#111111",
     border: "#222222",
     inputBg: "#111111",
-    accent: "#ffffff", // Pure white for minimal dark mode
+    accent: "#ffffff", 
     accentMuted: "rgba(255,255,255,0.15)",
+    textOnAccent: "#000000",
   },
   light: {
-    bg: "#f4f4f5", // Very light cool grey
+    bg: "#f4f4f5", 
     text: "#000000", 
     card: "#ffffff",
     border: "#e4e4e7",
     inputBg: "#ffffff",
-    accent: "#000000", // Bold black accent in light mode for extreme contrast
+    accent: "#000000", 
     accentMuted: "rgba(0,0,0,0.05)",
+    textOnAccent: "#ffffff",
   },
   strava: {
     bg: "#000000",
@@ -39,8 +42,9 @@ export const themes: Record<ThemeKey, ThemeColors> = {
     card: "#111111",
     border: "#222222",
     inputBg: "#111111",
-    accent: "#fc4c02", // Strava Orange
+    accent: "#fc4c02", 
     accentMuted: "rgba(252,76,2,0.15)",
+    textOnAccent: "#ffffff",
   },
   nike: {
     bg: "#000000",
@@ -48,8 +52,9 @@ export const themes: Record<ThemeKey, ThemeColors> = {
     card: "#111111",
     border: "#222222",
     inputBg: "#111111",
-    accent: "#ccff00", // Nike Volt Neon
+    accent: "#ccff00", 
     accentMuted: "rgba(204,255,0,0.15)",
+    textOnAccent: "#000000",
   },
 };
 

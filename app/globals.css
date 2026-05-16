@@ -1,12 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --accent: #d4a853;
-  --accent-muted: rgba(212, 168, 83, 0.15);
-  --bg: #0e0d0b;
-  --text: #f0ebe0;
-  --card: rgba(255, 255, 255, 0.03);
-  --border: rgba(255, 255, 255, 0.07);
+  --accent: #ffffff;
+  --accent-muted: rgba(255, 255, 255, 0.15);
+  --bg: #000000;
+  --text: #ffffff;
+  --card: #111111;
+  --border: #222222;
 }
 
 * {
